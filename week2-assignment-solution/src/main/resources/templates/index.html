@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 기반 도서 추천 시스템</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #0d1525 30%, #0f1a2a 70%, #0f0f1a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e5e7eb;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+            padding-top: 20px;
+        }
+
+        .header-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .header-title {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #a0a0a0;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .module-info {
+            color: #8b5cf6;
+            font-size: 0.9em;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(79, 70, 229, 0.2);
+            padding-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .nav-tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-tab:hover {
+            color: #e5e7eb;
+        }
+
+        .nav-tab.tab-active {
+            color: #6366f1;
+        }
+
+        .nav-tab.tab-active::after {
+            content: '';
+            position: absolute;
+            bottom: -13px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+        }
+
+        .letter-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            font-size: 12px;
+            font-weight: 600;
+            color: #6366f1;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.tab-active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #d1d5db;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e5e7eb;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-select {
+            cursor: pointer;
+        }
+
+        .form-select option {
+            background: #0f0f1a;
+            color: #e5e7eb;
+        }
+
+        .button {
+            padding: 11px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 100%;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .button-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+
+        .button-primary:active {
+            transform: translateY(0);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-top: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            margin-top: 24px;
+        }
+
+        .result.active {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-text {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+            color: #d1d5db;
+            font-size: 14px;
+        }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .recommendation-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .recommendation-card:hover {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateY(-4px);
+        }
+
+        .recommendation-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e5e7eb;
+            margin-bottom: 4px;
+        }
+
+        .recommendation-author {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-bottom: 12px;
+        }
+
+        .recommendation-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .recommendation-genre {
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .recommendation-rating {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        .recommendation-summary {
+            font-size: 13px;
+            color: #d1d5db;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .recommendation-reason {
+            font-size: 12px;
+            color: #9ca3af;
+            border-top: 1px solid rgba(99, 102, 241, 0.1);
+            padding-top: 12px;
+            font-style: italic;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header-title {
+                font-size: 24px;
+            }
+
+            .nav-tabs {
+                gap: 8px;
+            }
+
+            .nav-tab {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .recommendation-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-badge">B</div>
+            <h1 class="header-title">AI 기반 도서 추천 시스템</h1>
+            <p class="subtitle">Spring AI와 OpenAI를 활용한 지능형 도서 추천 서비스</p>
+        </header>
+
+        <div class="nav-tabs">
+            <button class="nav-tab tab-active" onclick="switchTab(0)">
+                <span class="letter-badge">B</span>
+                도서 추천
+            </button>
+            <button class="nav-tab" onclick="switchTab(1)">
+                <span class="letter-badge">B</span>
+                도서 분석
+            </button>
+            <button class="nav-tab" onclick="switchTab(2)">
+                <span class="letter-badge">B</span>
+                구조화된 추천
+            </button>
+            <button class="nav-tab" onclick="switchTab(3)">
+                <span class="letter-badge">Z</span>
+                제로-샷 분류
+            </button>
+            <button class="nav-tab" onclick="switchTab(4)">
+                <span class="letter-badge">S</span>
+                스텝-백 분석
+            </button>
+        </div>
+
+        <!-- Tab 1: 도서 추천 -->
+        <div id="tab-0" class="tab-content tab-active">
+            <div class="card">
+                <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e5e7eb;">
+                    당신을 위한 도서 추천
+                </h2>
+
+                <form id="recommendForm" onsubmit="handleRecommend(event)">
+                    <div class="form-group">
+                        <label class="form-label">장르</label>
+                        <select class="form-select" id="genre" required>
+                            <option value="">장르를 선택하세요</option>
+                            <option value="소설">소설</option>
+                            <option value="자기계발">자기계발</option>
+                            <option value="과학">과학</option>
+                            <option value="역사">역사</option>
+                            <option value="경영">경영</option>
+                            <option value="IT">IT</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">분위기 / 키워드</label>
+                        <input type="text" class="form-input" id="mood" placeholder="예: 따뜻한, 긴장감 있는, 영감을 주는" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">추천 권수</label>
+                        <select class="form-select" id="count" required>
+                            <option value="">권수를 선택하세요</option>
+                            <option value="3">3권</option>
+                            <option value="5">5권</option>
+                            <option value="10">10권</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="button button-primary" id="recommendBtn">
+                        도서 추천 받기
+                    </button>
+                </form>
+
+                <div class="loading" id="recommendLoading">
+                    <span class="spinner"></span>도서를 추천하는 중입니다...
+                </div>
+
+                <div class="error" id="recommendError"></div>
+
+                <div class="result" id="recommendResult">
+                    <div class="result-text" id="recommendText"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 도서 분석 -->
+        <div id="tab-1" class="tab-content">
+            <div class="card">
+                <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e5e7eb;">
+                    도서 상세 분석
+                </h2>
+
+                <form id="analyzeForm" onsubmit="handleAnalyze(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">도서명</label>
+                            <input type="text" class="form-input" id="title" placeholder="예: 채식주의자" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">저자명</label>
+                            <input type="text" class="form-input" id="author" placeholder="예: 한강" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="button button-primary" id="analyzeBtn">
+                        도서 분석하기
+                    </button>
+                </form>
+
+                <div class="loading" id="analyzeLoading">
+                    <span class="spinner"></span>도서를 분석하는 중입니다...
+                </div>
+
+                <div class="error" id="analyzeError"></div>
+
+                <div class="result" id="analyzeResult">
+                    <div class="result-text" id="analyzeText"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 구조화된 추천 -->
+        <div id="tab-2" class="tab-content">
+            <div class="card">
+                <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e5e7eb;">
+                    구조화된 도서 추천
+                </h2>
+
+                <form id="structuredForm" onsubmit="handleStructured(event)">
+                    <div class="form-group">
+                        <label class="form-label">장르</label>
+                        <select class="form-select" id="structuredGenre" required>
+                            <option value="">장르를 선택하세요</option>
+                            <option value="소설">소설</option>
+                            <option value="자기계발">자기계발</option>
+                            <option value="과학">과학</option>
+                            <option value="역사">역사</option>
+                            <option value="경영">경영</option>
+                            <option value="IT">IT</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">분위기 / 키워드</label>
+                        <input type="text" class="form-input" id="structuredMood" placeholder="예: 따뜻한, 긴장감 있는, 영감을 주는" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">추천 권수</label>
+                        <select class="form-select" id="structuredCount" required>
+                            <option value="">권수를 선택하세요</option>
+                            <option value="3">3권</option>
+                            <option value="5">5권</option>
+                            <option value="10">10권</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="button button-primary" id="structuredBtn">
+                        추천 받기
+                    </button>
+                </form>
+
+                <div class="loading" id="structuredLoading">
+                    <span class="spinner"></span>도서를 추천하는 중입니다...
+                </div>
+
+                <div class="error" id="structuredError"></div>
+
+                <div class="result" id="structuredResult">
+                    <div class="recommendation-grid" id="recommendationGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 제로-샷 분류 -->
+        <div id="tab-3" class="tab-content">
+            <div class="card">
+                <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e5e7eb;">
+                    제로-샷 도서 분류
+                </h2>
+                <p style="font-size: 13px; color: #9ca3af; margin-bottom: 20px;">
+                    예시 없이 명확한 지시만으로 도서 설명을 보고 장르를 분류합니다. 모델의 사전 학습된 지식에만 의존합니다.
+                </p>
+
+                <form id="zeroShotForm" onsubmit="handleZeroShot(event)">
+                    <div class="form-group">
+                        <label class="form-label">도서 설명</label>
+                        <textarea class="form-input" id="bookDescription" rows="4" placeholder="분류할 도서의 설명을 입력하세요... 예: 인공지능의 발전이 인류의 미래에 미치는 영향을 탐구하는 책" required style="resize: vertical;"></textarea>
+                    </div>
+
+                    <button type="submit" class="button button-primary" id="zeroShotBtn">
+                        장르 분류하기
+                    </button>
+                </form>
+
+                <div class="loading" id="zeroShotLoading">
+                    <span class="spinner"></span>도서를 분류하는 중입니다...
+                </div>
+
+                <div class="error" id="zeroShotError"></div>
+
+                <div class="result" id="zeroShotResult">
+                    <div class="result-text" id="zeroShotText"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 5: 스텝-백 분석 -->
+        <div id="tab-4" class="tab-content">
+            <div class="card">
+                <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e5e7eb;">
+                    스텝-백 도서 분석
+                </h2>
+                <p style="font-size: 13px; color: #9ca3af; margin-bottom: 20px;">
+                    구체적 질문에 바로 답하지 않고, 먼저 상위 개념과 원리를 탐색한 후 심층 답변을 제공합니다.
+                </p>
+
+                <form id="stepBackForm" onsubmit="handleStepBack(event)">
+                    <div class="form-group">
+                        <label class="form-label">도서명</label>
+                        <input type="text" class="form-input" id="stepBackTitle" placeholder="예: 사피엔스" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">분석 질문</label>
+                        <textarea class="form-input" id="stepBackQuestion" rows="3" placeholder="도서에 대해 궁금한 점을 입력하세요... 예: 이 책이 현대 사회에 미친 영향은 무엇인가요?" required style="resize: vertical;"></textarea>
+                    </div>
+
+                    <button type="submit" class="button button-primary" id="stepBackBtn">
+                        심층 분석하기
+                    </button>
+                </form>
+
+                <div class="loading" id="stepBackLoading">
+                    <span class="spinner"></span>심층 분석 중입니다...
+                </div>
+
+                <div class="error" id="stepBackError"></div>
+
+                <div class="result" id="stepBackResult">
+                    <div class="result-text" id="stepBackText"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(index) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('tab-active');
+            });
+
+            // Remove active class from all nav tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('tab-active');
+            });
+
+            // Show selected tab
+            document.getElementById(`tab-${index}`).classList.add('tab-active');
+            document.querySelectorAll('.nav-tab')[index].classList.add('tab-active');
+        }
+
+        function showLoading(elementId) {
+            document.getElementById(elementId).classList.add('active');
+        }
+
+        function hideLoading(elementId) {
+            document.getElementById(elementId).classList.remove('active');
+        }
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.classList.add('active');
+        }
+
+        function hideError(elementId) {
+            document.getElementById(elementId).classList.remove('active');
+        }
+
+        function showResult(elementId) {
+            document.getElementById(elementId).classList.add('active');
+        }
+
+        function hideResult(elementId) {
+            document.getElementById(elementId).classList.remove('active');
+        }
+
+        async function handleRecommend(event) {
+            event.preventDefault();
+
+            const genre = document.getElementById('genre').value;
+            const mood = document.getElementById('mood').value;
+            const count = document.getElementById('count').value;
+
+            showLoading('recommendLoading');
+            hideError('recommendError');
+            hideResult('recommendResult');
+
+            try {
+                const response = await fetch('/api/books/recommend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ genre, mood, count: parseInt(count) })
+                });
+
+                if (!response.ok) {
+                    throw new Error('추천 요청에 실패했습니다');
+                }
+
+                const result = await response.text();
+                document.getElementById('recommendText').textContent = result;
+                showResult('recommendResult');
+            } catch (error) {
+                showError('recommendError', error.message);
+            } finally {
+                hideLoading('recommendLoading');
+            }
+        }
+
+        async function handleAnalyze(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('title').value;
+            const author = document.getElementById('author').value;
+
+            showLoading('analyzeLoading');
+            hideError('analyzeError');
+            hideResult('analyzeResult');
+
+            try {
+                const response = await fetch('/api/books/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, author })
+                });
+
+                if (!response.ok) {
+                    throw new Error('분석 요청에 실패했습니다');
+                }
+
+                const result = await response.text();
+                document.getElementById('analyzeText').textContent = result;
+                showResult('analyzeResult');
+            } catch (error) {
+                showError('analyzeError', error.message);
+            } finally {
+                hideLoading('analyzeLoading');
+            }
+        }
+
+        async function handleStructured(event) {
+            event.preventDefault();
+
+            const genre = document.getElementById('structuredGenre').value;
+            const mood = document.getElementById('structuredMood').value;
+            const count = document.getElementById('structuredCount').value;
+
+            showLoading('structuredLoading');
+            hideError('structuredError');
+            hideResult('structuredResult');
+
+            try {
+                const response = await fetch('/api/books/structured', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ genre, mood, count: parseInt(count) })
+                });
+
+                if (!response.ok) {
+                    throw new Error('추천 요청에 실패했습니다');
+                }
+
+                const recommendations = await response.json();
+                renderRecommendations(recommendations);
+                showResult('structuredResult');
+            } catch (error) {
+                showError('structuredError', error.message);
+            } finally {
+                hideLoading('structuredLoading');
+            }
+        }
+
+        function renderRecommendations(recommendations) {
+            const grid = document.getElementById('recommendationGrid');
+            grid.innerHTML = '';
+
+            recommendations.forEach(rec => {
+                const card = document.createElement('div');
+                card.className = 'recommendation-card';
+                card.innerHTML = `
+                    <div class="recommendation-title">${escapeHtml(rec.title)}</div>
+                    <div class="recommendation-author">by ${escapeHtml(rec.author)}</div>
+                    <div class="recommendation-meta">
+                        <span class="recommendation-genre">${escapeHtml(rec.genre)}</span>
+                        <span class="recommendation-rating">★ ${rec.rating}/5</span>
+                    </div>
+                    <div class="recommendation-summary">${escapeHtml(rec.summary)}</div>
+                    <div class="recommendation-reason">"${escapeHtml(rec.reason)}"</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function handleZeroShot(event) {
+            event.preventDefault();
+
+            const bookDescription = document.getElementById('bookDescription').value;
+
+            showLoading('zeroShotLoading');
+            hideError('zeroShotError');
+            hideResult('zeroShotResult');
+
+            try {
+                const response = await fetch('/api/books/zero-shot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bookDescription })
+                });
+
+                if (!response.ok) {
+                    throw new Error('분류 요청에 실패했습니다');
+                }
+
+                const data = await response.json();
+                document.getElementById('zeroShotText').textContent = data.result;
+                showResult('zeroShotResult');
+            } catch (error) {
+                showError('zeroShotError', error.message);
+            } finally {
+                hideLoading('zeroShotLoading');
+            }
+        }
+
+        async function handleStepBack(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('stepBackTitle').value;
+            const question = document.getElementById('stepBackQuestion').value;
+
+            showLoading('stepBackLoading');
+            hideError('stepBackError');
+            hideResult('stepBackResult');
+
+            try {
+                const response = await fetch('/api/books/step-back', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, question })
+                });
+
+                if (!response.ok) {
+                    throw new Error('분석 요청에 실패했습니다');
+                }
+
+                const data = await response.json();
+                document.getElementById('stepBackText').textContent = data.result;
+                showResult('stepBackResult');
+            } catch (error) {
+                showError('stepBackError', error.message);
+            } finally {
+                hideLoading('stepBackLoading');
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>

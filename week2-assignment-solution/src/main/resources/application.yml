@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: week2-assignment-solution
+
+  ai:
+    # ChatClient auto-configuration 비활성화 (AiConfig에서 수동 생성)
+    chat:
+      client:
+        enabled: false
+
+    # OpenAI (기본)
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-proj-XXXXXXXXXXXXXX}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.7
+          max-tokens: 2000
+
+    # Ollama (프로필 활성화 시 사용)
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: llama3.2
+          temperature: 0.7
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    com.study.springai: DEBUG
+
+---
+# ================================================================
+#  Ollama Profile
+#  실행: ./gradlew bootRun --args='--spring.profiles.active=ollama'
+# ================================================================
+spring:
+  config:
+    activate:
+      on-profile: ollama
+  ai:
+    openai:
+      enabled: false
