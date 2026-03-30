@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Week 6 Practice - Advisor, Embedding, Chat Memory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); min-height: 100vh; }
+        .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .tab-active { background: linear-gradient(135deg, #ec4899, #8b5cf6); color: white; }
+        .tab-inactive { background: rgba(255,255,255,0.05); color: #94a3b8; }
+        .tab-inactive:hover { background: rgba(255,255,255,0.1); }
+        .btn-primary { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .chat-msg-user { background: rgba(139,92,246,0.2); border-left: 3px solid #8b5cf6; }
+        .chat-msg-ai { background: rgba(236,72,153,0.1); border-left: 3px solid #ec4899; }
+        textarea, input[type=text], input[type=number] { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: white; }
+        textarea:focus, input:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 2px rgba(139,92,246,0.3); }
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #ec4899; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        pre { white-space: pre-wrap; word-break: break-all; }
+        .section-title { color: #c084fc; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body class="text-gray-200 p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                Week 6 Practice Project
+            </h1>
+            <p class="text-gray-400 mt-2">Advisor | Embedding & VectorStore | Chat Memory</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button onclick="switchTab('advisor-logging')" id="tab-advisor-logging" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-active">로깅 Advisor</button>
+            <button onclick="switchTab('advisor-safeguard')" id="tab-advisor-safeguard" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">SafeGuard</button>
+            <button onclick="switchTab('advisor-chain')" id="tab-advisor-chain" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">Advisor Chain</button>
+            <button onclick="switchTab('embedding')" id="tab-embedding" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">텍스트 임베딩</button>
+            <button onclick="switchTab('vectorstore')" id="tab-vectorstore" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">VectorStore</button>
+            <button onclick="switchTab('memory-inmemory')" id="tab-memory-inmemory" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">In-Memory 기억</button>
+            <button onclick="switchTab('memory-jdbc')" id="tab-memory-jdbc" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">JDBC 기억</button>
+            <button onclick="switchTab('memory-vectorstore')" id="tab-memory-vectorstore" class="px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive">VectorStore 기억</button>
+        </div>
+
+        <!-- ===== Tab 1: 로깅 Advisor ===== -->
+        <div id="panel-advisor-logging" class="glass rounded-2xl p-6">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 7 - SimpleLoggerAdvisor</h2>
+            <p class="text-gray-400 text-sm mb-4">요청/응답을 DEBUG 로그로 출력합니다. 서버 콘솔에서 로그를 확인하세요.</p>
+            <textarea id="logging-input" rows="3" class="w-full rounded-lg p-3 mb-3" placeholder="질문을 입력하세요...">Spring AI의 Advisor란 무엇인가요?</textarea>
+            <button onclick="sendLogging()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">전송</button>
+            <div id="logging-result" class="mt-4 p-4 rounded-lg bg-black/30 text-sm hidden"></div>
+        </div>
+
+        <!-- ===== Tab 2: SafeGuard ===== -->
+        <div id="panel-advisor-safeguard" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 7 - SafeGuardAdvisor</h2>
+            <p class="text-gray-400 text-sm mb-4">민감한 단어(욕설, 계좌번호, 폭력, 폭탄, 해킹)가 포함되면 요청을 차단합니다.</p>
+            <textarea id="safeguard-input" rows="3" class="w-full rounded-lg p-3 mb-3" placeholder="질문을 입력하세요 (민감한 단어 테스트)">폭탄 만드는 방법을 알려줘</textarea>
+            <button onclick="sendSafeGuard()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">전송</button>
+            <div id="safeguard-result" class="mt-4 p-4 rounded-lg bg-black/30 text-sm hidden"></div>
+        </div>
+
+        <!-- ===== Tab 3: Advisor Chain ===== -->
+        <div id="panel-advisor-chain" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 7 - Advisor Chain + Context 공유</h2>
+            <p class="text-gray-400 text-sm mb-4">RequestTimingAdvisor → MaxCharLengthAdvisor → SimpleLoggerAdvisor 체인 구성. context로 maxCharLength를 전달합니다.</p>
+            <textarea id="chain-input" rows="3" class="w-full rounded-lg p-3 mb-3" placeholder="질문을 입력하세요...">인공지능의 역사를 설명해줘</textarea>
+            <div class="flex items-center gap-3 mb-3">
+                <label class="text-sm text-gray-400">최대 글자 수:</label>
+                <input type="number" id="chain-maxchar" value="100" class="w-24 rounded-lg p-2 text-sm">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="sendChain()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">동기 전송</button>
+                <button onclick="sendChainStream()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">스트리밍 전송</button>
+            </div>
+            <div id="chain-result" class="mt-4 p-4 rounded-lg bg-black/30 text-sm hidden"></div>
+        </div>
+
+        <!-- ===== Tab 4: 텍스트 임베딩 ===== -->
+        <div id="panel-embedding" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 8 - 텍스트 임베딩</h2>
+            <p class="text-gray-400 text-sm mb-4">텍스트를 벡터로 변환하고 임베딩 결과를 확인합니다.</p>
+            <textarea id="embed-input" rows="3" class="w-full rounded-lg p-3 mb-3" placeholder="임베딩할 텍스트를 입력하세요...">강아지는 사랑스러운 동물입니다.</textarea>
+            <button onclick="sendEmbed()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">임베딩</button>
+            <div id="embed-result" class="mt-4 p-4 rounded-lg bg-black/30 text-sm hidden"></div>
+        </div>
+
+        <!-- ===== Tab 5: VectorStore ===== -->
+        <div id="panel-vectorstore" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 8 - VectorStore (Document 저장/검색/삭제)</h2>
+            <p class="text-gray-400 text-sm mb-4">PGVector 벡터 저장소에 Document를 저장하고 유사도 검색을 수행합니다.</p>
+
+            <!-- 저장 영역 -->
+            <div class="mb-6 p-4 rounded-lg bg-black/20">
+                <p class="section-title">Document 저장</p>
+                <button onclick="addSampleDocs()" class="btn-primary px-4 py-2 rounded-lg text-sm text-white mb-3">샘플 Document 저장 (헌법/자동차관리법)</button>
+                <div class="flex gap-2">
+                    <input type="text" id="doc-content" class="flex-1 rounded-lg p-2 text-sm" placeholder="Document 내용 입력...">
+                    <input type="text" id="doc-metadata" class="w-64 rounded-lg p-2 text-sm" placeholder='메타데이터 JSON (예: {"source":"test"})'>
+                    <button onclick="addCustomDoc()" class="btn-primary px-4 py-2 rounded-lg text-sm text-white">저장</button>
+                </div>
+            </div>
+
+            <!-- 검색 영역 -->
+            <div class="mb-6 p-4 rounded-lg bg-black/20">
+                <p class="section-title">유사도 검색</p>
+                <input type="text" id="search-query" class="w-full rounded-lg p-2 text-sm mb-2" placeholder="검색 쿼리 입력... (예: 대통령은 얼마 동안 근무해?)" value="대통령은 얼마 동안 근무해?">
+                <div class="flex flex-wrap gap-3 mb-2">
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-400">TopK:</label>
+                        <input type="number" id="search-topk" value="3" class="w-16 rounded-lg p-1 text-sm">
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-400">유사도 임계값:</label>
+                        <input type="text" id="search-threshold" value="0.0" class="w-16 rounded-lg p-1 text-sm">
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-400">필터:</label>
+                        <input type="text" id="search-filter" class="w-64 rounded-lg p-1 text-sm" placeholder="예: source == '헌법' && year >= 1987">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="searchSimple()" class="btn-primary px-4 py-2 rounded-lg text-sm text-white">단순 검색</button>
+                    <button onclick="searchAdvanced()" class="btn-primary px-4 py-2 rounded-lg text-sm text-white">상세 검색</button>
+                </div>
+            </div>
+
+            <!-- 삭제 영역 -->
+            <div class="mb-4 p-4 rounded-lg bg-black/20">
+                <p class="section-title">Document 삭제</p>
+                <div class="flex gap-2">
+                    <input type="text" id="delete-filter" class="flex-1 rounded-lg p-2 text-sm" placeholder="필터 표현식 (예: source == '헌법' && year < 1987)">
+                    <button onclick="deleteDocs()" class="btn-danger px-4 py-2 rounded-lg text-sm text-white">삭제</button>
+                </div>
+            </div>
+
+            <div id="vectorstore-result" class="mt-4 p-4 rounded-lg bg-black/30 text-sm hidden"></div>
+        </div>
+
+        <!-- ===== Tab 6: In-Memory 기억 ===== -->
+        <div id="panel-memory-inmemory" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 9 - In-Memory 대화 기억</h2>
+            <p class="text-gray-400 text-sm mb-4">MessageChatMemoryAdvisor + InMemoryChatMemoryRepository. 서버 재시작 시 기억이 사라집니다.</p>
+            <div class="flex items-center gap-3 mb-3">
+                <label class="text-sm text-gray-400">Conversation ID:</label>
+                <input type="text" id="inmemory-convid" value="user-1" class="w-40 rounded-lg p-2 text-sm">
+            </div>
+            <div id="inmemory-chat" class="mb-4 space-y-2 max-h-96 overflow-y-auto"></div>
+            <div class="flex gap-2">
+                <input type="text" id="inmemory-input" class="flex-1 rounded-lg p-3" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter'&&!event.isComposing)sendInMemory()">
+                <button onclick="sendInMemory()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">전송</button>
+            </div>
+        </div>
+
+        <!-- ===== Tab 7: JDBC 기억 ===== -->
+        <div id="panel-memory-jdbc" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 9 - JDBC 대화 기억 (PostgreSQL)</h2>
+            <p class="text-gray-400 text-sm mb-4">PromptChatMemoryAdvisor + JdbcChatMemoryRepository. 서버 재시작 후에도 기억이 유지됩니다.</p>
+            <div class="flex items-center gap-3 mb-3">
+                <label class="text-sm text-gray-400">Conversation ID:</label>
+                <input type="text" id="jdbc-convid" value="user-1" class="w-40 rounded-lg p-2 text-sm">
+            </div>
+            <div id="jdbc-chat" class="mb-4 space-y-2 max-h-96 overflow-y-auto"></div>
+            <div class="flex gap-2">
+                <input type="text" id="jdbc-input" class="flex-1 rounded-lg p-3" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter'&&!event.isComposing)sendJdbc()">
+                <button onclick="sendJdbc()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">전송</button>
+            </div>
+        </div>
+
+        <!-- ===== Tab 8: VectorStore 기억 ===== -->
+        <div id="panel-memory-vectorstore" class="glass rounded-2xl p-6 hidden">
+            <h2 class="text-xl font-bold text-white mb-2">Chapter 9 - VectorStore 대화 기억</h2>
+            <p class="text-gray-400 text-sm mb-4">VectorStoreChatMemoryAdvisor. 현재 대화와 유사한 이전 대화를 의미적으로 검색하여 활용합니다.</p>
+            <div class="flex items-center gap-3 mb-3">
+                <label class="text-sm text-gray-400">Conversation ID:</label>
+                <input type="text" id="vs-convid" value="user-1" class="w-40 rounded-lg p-2 text-sm">
+            </div>
+            <div id="vs-chat" class="mb-4 space-y-2 max-h-96 overflow-y-auto"></div>
+            <div class="flex gap-2">
+                <input type="text" id="vs-input" class="flex-1 rounded-lg p-3" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter'&&!event.isComposing)sendVectorStore()">
+                <button onclick="sendVectorStore()" class="btn-primary px-6 py-2 rounded-lg font-medium text-white">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== Tab switching ==========
+        const tabs = ['advisor-logging','advisor-safeguard','advisor-chain','embedding','vectorstore','memory-inmemory','memory-jdbc','memory-vectorstore'];
+        function switchTab(name) {
+            tabs.forEach(t => {
+                document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+                document.getElementById('tab-' + t).className = (t === name)
+                    ? 'px-4 py-2 rounded-lg text-sm font-medium transition tab-active'
+                    : 'px-4 py-2 rounded-lg text-sm font-medium transition tab-inactive';
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function showResult(id, html) {
+            const el = document.getElementById(id);
+            el.innerHTML = html;
+            el.classList.remove('hidden');
+        }
+
+        function showLoading(id) {
+            showResult(id, '<div class="spinner"></div> <span class="text-gray-400 ml-2">처리 중...</span>');
+        }
+
+        async function postJson(url, body) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({error: '요청 실패'}));
+                throw new Error(err.error || '요청 실패');
+            }
+            return res.json();
+        }
+
+        // ========== Chapter 7: Advisor ==========
+        async function sendLogging() {
+            showLoading('logging-result');
+            try {
+                const data = await postJson('/api/advisor/logging', { message: document.getElementById('logging-input').value });
+                showResult('logging-result', '<p class="text-green-400 mb-1">✓ 응답 (서버 콘솔에서 DEBUG 로그를 확인하세요)</p><pre class="text-gray-200">' + escapeHtml(data.answer) + '</pre>');
+            } catch (e) { showResult('logging-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function sendSafeGuard() {
+            showLoading('safeguard-result');
+            try {
+                const data = await postJson('/api/advisor/safeguard', { message: document.getElementById('safeguard-input').value });
+                showResult('safeguard-result', '<pre class="text-gray-200">' + escapeHtml(data.answer) + '</pre>');
+            } catch (e) { showResult('safeguard-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function sendChain() {
+            showLoading('chain-result');
+            try {
+                const maxChar = parseInt(document.getElementById('chain-maxchar').value) || 200;
+                const data = await postJson('/api/advisor/chain', { message: document.getElementById('chain-input').value, maxCharLength: maxChar });
+                showResult('chain-result', '<p class="text-green-400 mb-1">✓ 동기 응답 (최대 ' + maxChar + '자 제한)</p><pre class="text-gray-200">' + escapeHtml(data.answer) + '</pre>');
+            } catch (e) { showResult('chain-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function sendChainStream() {
+            showLoading('chain-result');
+            const maxChar = parseInt(document.getElementById('chain-maxchar').value) || 200;
+            try {
+                const res = await fetch('/api/advisor/chain/stream', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: document.getElementById('chain-input').value, maxCharLength: maxChar })
+                });
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let text = '';
+                showResult('chain-result', '<p class="text-green-400 mb-1">✓ 스트리밍 응답 (최대 ' + maxChar + '자 제한)</p><pre id="stream-output" class="text-gray-200"></pre>');
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    // SSE 파싱
+                    chunk.split('\n').forEach(line => {
+                        if (line.startsWith('data:')) {
+                            text += line.substring(5);
+                            document.getElementById('stream-output').textContent = text;
+                        }
+                    });
+                }
+            } catch (e) { showResult('chain-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        // ========== Chapter 8: Embedding ==========
+        async function sendEmbed() {
+            showLoading('embed-result');
+            try {
+                const data = await postJson('/api/embedding/embed', { text: document.getElementById('embed-input').value });
+                let html = '<p class="text-green-400 mb-2">✓ 임베딩 완료</p>';
+                html += '<p><span class="text-gray-400">모델:</span> ' + escapeHtml(String(data.model)) + '</p>';
+                html += '<p><span class="text-gray-400">차원:</span> ' + data.dimensions + '</p>';
+                html += '<p><span class="text-gray-400">벡터 길이:</span> ' + data.vectorLength + '</p>';
+                html += '<p class="text-gray-400 mt-2">벡터 샘플 (처음 10개):</p>';
+                html += '<pre class="text-xs text-purple-300">[' + (data.vectorSample||[]).map(v => v.toFixed(6)).join(', ') + ', ...]</pre>';
+                showResult('embed-result', html);
+            } catch (e) { showResult('embed-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        // ========== Chapter 8: VectorStore ==========
+        async function addSampleDocs() {
+            showLoading('vectorstore-result');
+            try {
+                const data = await postJson('/api/embedding/documents/sample', {});
+                showResult('vectorstore-result', '<p class="text-green-400">✓ ' + escapeHtml(data.result) + '</p>');
+            } catch (e) { showResult('vectorstore-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function addCustomDoc() {
+            showLoading('vectorstore-result');
+            try {
+                let metadata = {};
+                const metaStr = document.getElementById('doc-metadata').value.trim();
+                if (metaStr) metadata = JSON.parse(metaStr);
+                const data = await postJson('/api/embedding/documents', { content: document.getElementById('doc-content').value, metadata });
+                showResult('vectorstore-result', '<p class="text-green-400">✓ ' + escapeHtml(data.result) + '</p>');
+            } catch (e) { showResult('vectorstore-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function searchSimple() {
+            showLoading('vectorstore-result');
+            try {
+                const data = await postJson('/api/embedding/search/simple', { query: document.getElementById('search-query').value });
+                showSearchResults(data);
+            } catch (e) { showResult('vectorstore-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        async function searchAdvanced() {
+            showLoading('vectorstore-result');
+            try {
+                const data = await postJson('/api/embedding/search/advanced', {
+                    query: document.getElementById('search-query').value,
+                    topK: parseInt(document.getElementById('search-topk').value) || 4,
+                    similarityThreshold: parseFloat(document.getElementById('search-threshold').value) || 0.0,
+                    filterExpression: document.getElementById('search-filter').value || null
+                });
+                showSearchResults(data);
+            } catch (e) { showResult('vectorstore-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        function showSearchResults(docs) {
+            if (!docs || docs.length === 0) {
+                showResult('vectorstore-result', '<p class="text-yellow-400">검색 결과가 없습니다.</p>');
+                return;
+            }
+            let html = '<p class="text-green-400 mb-2">✓ ' + docs.length + '개 결과</p>';
+            docs.forEach((doc, i) => {
+                html += '<div class="mb-3 p-3 rounded bg-black/30">';
+                html += '<p class="text-white font-medium">#' + (i+1) + ' ' + escapeHtml(doc.content) + '</p>';
+                html += '<p class="text-xs text-gray-400 mt-1">ID: ' + escapeHtml(doc.id) + '</p>';
+                if (doc.score != null) html += '<p class="text-xs text-purple-300">유사도: ' + doc.score.toFixed(4) + '</p>';
+                if (doc.metadata) html += '<p class="text-xs text-gray-500">메타데이터: ' + escapeHtml(JSON.stringify(doc.metadata)) + '</p>';
+                html += '</div>';
+            });
+            showResult('vectorstore-result', html);
+        }
+
+        async function deleteDocs() {
+            showLoading('vectorstore-result');
+            try {
+                const res = await fetch('/api/embedding/documents', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ filterExpression: document.getElementById('delete-filter').value })
+                });
+                const data = await res.json();
+                showResult('vectorstore-result', '<p class="text-green-400">✓ ' + escapeHtml(data.result) + '</p>');
+            } catch (e) { showResult('vectorstore-result', '<p class="text-red-400">오류: ' + escapeHtml(e.message) + '</p>'); }
+        }
+
+        // ========== Chapter 9: Chat Memory ==========
+        function appendChatMsg(containerId, role, text) {
+            const el = document.getElementById(containerId);
+            const cls = role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
+            const label = role === 'user' ? '나' : 'AI';
+            el.innerHTML += '<div class="' + cls + ' rounded-lg p-3"><p class="text-xs text-gray-500 mb-1">' + label + '</p><p class="text-sm">' + escapeHtml(text) + '</p></div>';
+            el.scrollTop = el.scrollHeight;
+        }
+
+        async function sendInMemory() {
+            const input = document.getElementById('inmemory-input');
+            const msg = input.value.trim(); if (!msg) return;
+            const convId = document.getElementById('inmemory-convid').value || 'default';
+            input.value = '';
+            appendChatMsg('inmemory-chat', 'user', msg);
+            appendChatMsg('inmemory-chat', 'ai', '...');
+            try {
+                const data = await postJson('/api/chat/memory/inmemory', { message: msg, conversationId: convId });
+                // 마지막 AI 메시지 교체
+                const chat = document.getElementById('inmemory-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = data.answer;
+            } catch (e) {
+                const chat = document.getElementById('inmemory-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = '오류: ' + e.message;
+            }
+        }
+
+        async function sendJdbc() {
+            const input = document.getElementById('jdbc-input');
+            const msg = input.value.trim(); if (!msg) return;
+            const convId = document.getElementById('jdbc-convid').value || 'default';
+            input.value = '';
+            appendChatMsg('jdbc-chat', 'user', msg);
+            appendChatMsg('jdbc-chat', 'ai', '...');
+            try {
+                const data = await postJson('/api/chat/memory/jdbc', { message: msg, conversationId: convId });
+                const chat = document.getElementById('jdbc-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = data.answer;
+            } catch (e) {
+                const chat = document.getElementById('jdbc-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = '오류: ' + e.message;
+            }
+        }
+
+        async function sendVectorStore() {
+            const input = document.getElementById('vs-input');
+            const msg = input.value.trim(); if (!msg) return;
+            const convId = document.getElementById('vs-convid').value || 'default';
+            input.value = '';
+            appendChatMsg('vs-chat', 'user', msg);
+            appendChatMsg('vs-chat', 'ai', '...');
+            try {
+                const data = await postJson('/api/chat/memory/vectorstore', { message: msg, conversationId: convId });
+                const chat = document.getElementById('vs-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = data.answer;
+            } catch (e) {
+                const chat = document.getElementById('vs-chat');
+                chat.lastChild.querySelector('p:last-child').textContent = '오류: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

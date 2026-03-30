@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: week6-practice-project
+
+  ai:
+    chat:
+      client:
+        enabled: false  # ChatClient 자동 구성 비활성화 (각 Service에서 수동 생성)
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always  # JDBC 대화 기억 스키마 자동 생성
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-proj-xxxxxxxxxx}
+      chat:
+        options:
+          model: gpt-4.1-nano
+      embedding:
+        options:
+          model: text-embedding-ada-002
+
+    vectorstore:
+      pgvector:
+        dimensions: 1536
+        distance-type: cosine_distance
+        index-type: hnsw
+        initialize-schema: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app_vector_db
+    username: app_user
+    password: app_password
+    driver-class-name: org.postgresql.Driver
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    org.springframework.ai.chat.client.advisor: DEBUG
+    com.study.week6: DEBUG
