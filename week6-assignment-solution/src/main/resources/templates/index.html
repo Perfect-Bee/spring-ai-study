@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 도서 추천</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --bg-primary: #0b0f1a; --bg-card: #111827; --bg-input: #1f2937; --accent: #6366f1; --accent-light: #818cf8; --accent-glow: rgba(99,102,241,0.15); }
+        body { background: var(--bg-primary); font-family: 'Inter', system-ui, sans-serif; }
+        .card { background: var(--bg-card); border: 1px solid #1f2937; }
+        .card:hover { border-color: #374151; }
+        .input-field { background: var(--bg-input); border: 1px solid #374151; color: #e5e7eb; transition: border-color 0.2s; }
+        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .input-field::placeholder { color: #6b7280; }
+        .btn { background: var(--accent); color: white; font-weight: 500; transition: all 0.2s; }
+        .btn:hover { background: var(--accent-light); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-ghost { background: transparent; border: 1px solid #374151; color: #9ca3af; }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent-light); background: var(--accent-glow); }
+        .btn-ghost.active { border-color: var(--accent); color: var(--accent-light); background: var(--accent-glow); }
+        .nav-item { color: #6b7280; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .nav-item:hover { color: #d1d5db; }
+        .nav-item.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+        .chat-bubble-user { background: #1e1b4b; border: 1px solid #312e81; }
+        .chat-bubble-ai { background: #1f2937; border: 1px solid #374151; }
+        .badge { font-size: 0.625rem; padding: 2px 8px; border-radius: 9999px; font-weight: 500; }
+        .badge-genre { background: #1e1b4b; color: #a5b4fc; }
+        .badge-rating { background: #1c1917; color: #fbbf24; }
+        .spinner { width: 18px; height: 18px; border: 2px solid #374151; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .score-bar { height: 4px; border-radius: 2px; background: #1f2937; overflow: hidden; }
+        .score-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #6366f1, #a78bfa); transition: width 0.5s; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .sidebar-section { border-bottom: 1px solid #1f2937; }
+        select option { background: #1f2937; color: #e5e7eb; }
+    </style>
+</head>
+<body class="text-gray-300 min-h-screen flex flex-col">
+
+    <!-- ─── Top Nav ─── -->
+    <header class="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">B</div>
+            <span class="text-white font-semibold text-lg">AI 도서 추천</span>
+        </div>
+        <nav class="flex gap-6">
+            <button onclick="navigate('chat')" id="nav-chat" class="nav-item active pb-2 text-sm">AI 추천</button>
+            <button onclick="navigate('search')" id="nav-search" class="nav-item pb-2 text-sm">도서 검색</button>
+            <button onclick="navigate('register')" id="nav-register" class="nav-item pb-2 text-sm">도서 등록</button>
+            <button onclick="navigate('explore')" id="nav-explore" class="nav-item pb-2 text-sm">도서 탐색</button>
+            <button onclick="navigate('embedding')" id="nav-embedding" class="nav-item pb-2 text-sm">임베딩 실험</button>
+        </nav>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6">
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- PAGE: AI 추천 채팅                        -->
+        <!-- ════════════════════════════════════════ -->
+        <div id="page-chat">
+            <div class="grid grid-cols-[1fr_300px] gap-6 h-[calc(100vh-120px)]">
+                <!-- Chat Area -->
+                <div class="card rounded-xl flex flex-col overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-white font-semibold">AI 도서 추천</h2>
+                            <p class="text-gray-500 text-xs mt-0.5">대화를 통해 맞춤 도서를 추천받으세요</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-500 text-xs">세션:</span>
+                            <input type="text" id="chat-convid" value="user-1" class="input-field rounded-md px-2 py-1 text-xs w-24">
+                        </div>
+                    </div>
+                    <div id="chat-messages" class="flex-1 overflow-y-auto p-5 space-y-4">
+                        <div class="text-center text-gray-600 text-sm py-12">
+                            <p class="text-2xl mb-3">&#128218;</p>
+                            <p>어떤 책을 찾고 계신가요?</p>
+                            <p class="text-xs mt-1 text-gray-700">관심 분야, 독서 수준, 선호 장르를 말씀해 주세요</p>
+                        </div>
+                    </div>
+                    <div class="px-5 py-4 border-t border-gray-800">
+                        <div class="flex gap-3">
+                            <input type="text" id="chat-input" class="input-field flex-1 rounded-lg px-4 py-3 text-sm"
+                                   placeholder="예: 자바 초보인데 실무에 도움되는 책 추천해줘" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing)sendChat()">
+                            <button onclick="sendChat()" id="chat-btn" class="btn rounded-lg px-6 text-sm">보내기</button>
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="quickChat('프로그래밍 입문 책 추천해줘')" class="btn-ghost rounded-full px-3 py-1 text-xs">프로그래밍 입문</button>
+                            <button onclick="quickChat('요즘 읽기 좋은 과학 교양서 있어?')" class="btn-ghost rounded-full px-3 py-1 text-xs">과학 교양</button>
+                            <button onclick="quickChat('창업에 도움되는 책 알려줘')" class="btn-ghost rounded-full px-3 py-1 text-xs">창업/비즈니스</button>
+                            <button onclick="quickChat('인생이 바뀌는 자기계발서 추천')" class="btn-ghost rounded-full px-3 py-1 text-xs">자기계발</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Sidebar -->
+                <div class="card rounded-xl overflow-hidden flex flex-col">
+                    <div class="px-4 py-3 border-b border-gray-800">
+                        <p class="text-white text-sm font-medium">기능 안내</p>
+                    </div>
+                    <div class="flex-1 overflow-y-auto text-xs text-gray-500 p-4 space-y-4">
+                        <div class="sidebar-section pb-3">
+                            <p class="text-gray-400 font-medium mb-1">SafeGuard Advisor</p>
+                            <p>민감 단어(욕설, 폭력 등) 포함 시 요청을 자동 차단합니다.</p>
+                        </div>
+                        <div class="sidebar-section pb-3">
+                            <p class="text-gray-400 font-medium mb-1">대화 기억 (JDBC)</p>
+                            <p>최근 50개 메시지를 PostgreSQL에 저장하여 멀티턴 대화를 유지합니다. 서버 재시작 후에도 기억이 남습니다.</p>
+                        </div>
+                        <div class="sidebar-section pb-3">
+                            <p class="text-gray-400 font-medium mb-1">시맨틱 검색</p>
+                            <p>질문과 유사한 도서를 VectorStore에서 자동 검색하여 LLM에 컨텍스트로 제공합니다.</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 font-medium mb-1">로깅 Advisor</p>
+                            <p>모든 요청/응답이 서버 DEBUG 로그에 기록됩니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- PAGE: 시맨틱 도서 검색                     -->
+        <!-- ════════════════════════════════════════ -->
+        <div id="page-search" class="hidden">
+            <div class="card rounded-xl p-6">
+                <h2 class="text-white font-semibold text-lg mb-1">시맨틱 도서 검색</h2>
+                <p class="text-gray-500 text-sm mb-5">자연어로 검색하면 의미적으로 유사한 도서를 VectorStore에서 찾아줍니다.</p>
+
+                <div class="flex gap-3 mb-4">
+                    <input type="text" id="search-query" class="input-field flex-1 rounded-lg px-4 py-3 text-sm"
+                           placeholder="예: 대규모 시스템을 설계하는 방법이 궁금해요" value="대규모 시스템을 설계하는 방법이 궁금해요">
+                    <button onclick="doSearch('simple')" class="btn rounded-lg px-5 text-sm">검색</button>
+                </div>
+
+                <details class="mb-5">
+                    <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-300">상세 검색 옵션</summary>
+                    <div class="mt-3 flex flex-wrap gap-4 p-4 rounded-lg bg-gray-900/50">
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">결과 수</label>
+                            <input type="number" id="search-topk" value="5" class="input-field rounded-md px-3 py-1.5 text-sm w-20">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">유사도 임계값</label>
+                            <input type="text" id="search-threshold" value="0.0" class="input-field rounded-md px-3 py-1.5 text-sm w-20">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">장르 필터</label>
+                            <select id="search-genre" class="input-field rounded-md px-3 py-1.5 text-sm">
+                                <option value="">전체</option>
+                                <option value="프로그래밍">프로그래밍</option>
+                                <option value="인공지능">인공지능</option>
+                                <option value="데이터">데이터</option>
+                                <option value="자기계발">자기계발</option>
+                                <option value="비즈니스">비즈니스</option>
+                                <option value="소설">소설</option>
+                                <option value="과학">과학</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="doSearch('advanced')" class="btn rounded-lg px-5 py-1.5 text-sm">상세 검색</button>
+                        </div>
+                    </div>
+                </details>
+
+                <div id="search-result"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- PAGE: 도서 등록                           -->
+        <!-- ════════════════════════════════════════ -->
+        <div id="page-register" class="hidden">
+            <div class="max-w-2xl mx-auto">
+                <div class="card rounded-xl p-6">
+                    <h2 class="text-white font-semibold text-lg mb-1">새 도서 등록</h2>
+                    <p class="text-gray-500 text-sm mb-5">RDB에 저장하고 VectorStore에 임베딩하여 즉시 시맨틱 검색이 가능합니다.</p>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">제목 *</label>
+                                <input type="text" id="reg-title" class="input-field w-full rounded-lg px-4 py-2.5 text-sm" placeholder="도서 제목">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">저자 *</label>
+                                <input type="text" id="reg-author" class="input-field w-full rounded-lg px-4 py-2.5 text-sm" placeholder="저자명">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">장르 *</label>
+                                <select id="reg-genre" class="input-field w-full rounded-lg px-4 py-2.5 text-sm">
+                                    <option value="프로그래밍">프로그래밍</option>
+                                    <option value="인공지능">인공지능</option>
+                                    <option value="데이터">데이터</option>
+                                    <option value="자기계발">자기계발</option>
+                                    <option value="비즈니스">비즈니스</option>
+                                    <option value="소설">소설</option>
+                                    <option value="과학">과학</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">평점 (0.0~5.0)</label>
+                                <input type="text" id="reg-rating" value="4.0" class="input-field w-full rounded-lg px-4 py-2.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">출판연도</label>
+                                <input type="number" id="reg-year" value="2026" class="input-field w-full rounded-lg px-4 py-2.5 text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">ISBN</label>
+                            <input type="text" id="reg-isbn" class="input-field w-full rounded-lg px-4 py-2.5 text-sm" placeholder="ISBN (선택)">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">설명 *</label>
+                            <textarea id="reg-desc" rows="4" class="input-field w-full rounded-lg px-4 py-2.5 text-sm" placeholder="도서에 대한 설명을 작성하세요. 이 내용이 임베딩되어 시맨틱 검색에 사용됩니다."></textarea>
+                        </div>
+                        <button onclick="registerBook()" id="reg-btn" class="btn w-full rounded-lg py-3 text-sm">등록하기</button>
+                    </div>
+                    <div id="reg-result" class="mt-4 text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- PAGE: 도서 탐색 (RDB 목록)                -->
+        <!-- ════════════════════════════════════════ -->
+        <div id="page-explore" class="hidden">
+            <div class="card rounded-xl p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-white font-semibold text-lg">도서 탐색</h2>
+                        <p class="text-gray-500 text-sm">PostgreSQL에 저장된 도서 목록입니다.</p>
+                    </div>
+                    <div class="flex gap-2" id="genre-filters">
+                        <button onclick="loadBooks('')" class="btn-ghost active rounded-full px-3 py-1 text-xs" data-genre="">전체</button>
+                        <button onclick="loadBooks('프로그래밍')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="프로그래밍">프로그래밍</button>
+                        <button onclick="loadBooks('인공지능')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="인공지능">인공지능</button>
+                        <button onclick="loadBooks('데이터')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="데이터">데이터</button>
+                        <button onclick="loadBooks('과학')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="과학">과학</button>
+                        <button onclick="loadBooks('소설')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="소설">소설</button>
+                        <button onclick="loadBooks('자기계발')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="자기계발">자기계발</button>
+                        <button onclick="loadBooks('비즈니스')" class="btn-ghost rounded-full px-3 py-1 text-xs" data-genre="비즈니스">비즈니스</button>
+                    </div>
+                </div>
+                <div id="books-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- PAGE: 임베딩 실험                         -->
+        <!-- ════════════════════════════════════════ -->
+        <div id="page-embedding" class="hidden">
+            <div class="max-w-2xl mx-auto">
+                <div class="card rounded-xl p-6">
+                    <h2 class="text-white font-semibold text-lg mb-1">임베딩 실험실</h2>
+                    <p class="text-gray-500 text-sm mb-5">텍스트를 벡터로 변환하고 임베딩 모델의 출력을 확인합니다.</p>
+
+                    <textarea id="embed-input" rows="3" class="input-field w-full rounded-lg px-4 py-3 text-sm mb-3"
+                              placeholder="임베딩할 텍스트를 입력하세요...">스프링 부트로 웹 애플리케이션을 개발하고 싶습니다</textarea>
+                    <button onclick="doEmbed()" class="btn rounded-lg px-5 py-2 text-sm">임베딩 실행</button>
+                    <div id="embed-result" class="mt-5 text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ─── Navigation ───
+        const pages = ['chat','search','register','explore','embedding'];
+        function navigate(page) {
+            pages.forEach(p => {
+                document.getElementById('page-' + p).classList.toggle('hidden', p !== page);
+                document.getElementById('nav-' + p).classList.toggle('active', p === page);
+            });
+            if (page === 'explore') loadBooks('');
+        }
+
+        function esc(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+        async function api(url, body, method = 'POST') {
+            const opts = { method, headers: {'Content-Type':'application/json'} };
+            if (body) opts.body = JSON.stringify(body);
+            const r = await fetch(url, opts);
+            if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || r.statusText); }
+            return r.json();
+        }
+
+        // ─── Chat ───
+        let chatStarted = false;
+        function appendMsg(role, text) {
+            const el = document.getElementById('chat-messages');
+            if (!chatStarted) { el.innerHTML = ''; chatStarted = true; }
+            const cls = role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai';
+            const label = role === 'user' ? '나' : 'System';
+            el.innerHTML += `<div class="${cls} rounded-xl p-4 fade-in">
+                <p class="text-xs ${role==='user'?'text-indigo-400':'text-gray-500'} mb-1.5 font-medium">${label}</p>
+                <p class="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">${esc(text)}</p>
+            </div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function quickChat(msg) {
+            document.getElementById('chat-input').value = msg;
+            sendChat();
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim(); if (!msg) return;
+            const convId = document.getElementById('chat-convid').value || 'default';
+            const btn = document.getElementById('chat-btn');
+            input.value = ''; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+            appendMsg('user', msg);
+            appendMsg('ai', '추천 도서를 찾고 있어요...');
+            try {
+                const data = await api('/api/chat', { message: msg, conversationId: convId });
+                const msgs = document.getElementById('chat-messages');
+                msgs.lastChild.querySelector('p:last-child').textContent = data.answer;
+            } catch (e) {
+                const msgs = document.getElementById('chat-messages');
+                msgs.lastChild.querySelector('p:last-child').textContent = e.message;
+                msgs.lastChild.querySelector('p:last-child').classList.add('text-red-400');
+            }
+            btn.disabled = false; btn.textContent = '보내기';
+        }
+
+        // ─── Search ───
+        async function doSearch(mode) {
+            const el = document.getElementById('search-result');
+            el.innerHTML = '<div class="flex items-center gap-2 text-gray-500 text-sm py-4"><span class="spinner"></span> 검색 중...</div>';
+            try {
+                let data;
+                if (mode === 'simple') {
+                    data = await api('/api/search/simple', { query: document.getElementById('search-query').value });
+                } else {
+                    data = await api('/api/search/advanced', {
+                        query: document.getElementById('search-query').value,
+                        topK: parseInt(document.getElementById('search-topk').value) || 5,
+                        similarityThreshold: parseFloat(document.getElementById('search-threshold').value) || 0.0,
+                        genre: document.getElementById('search-genre').value || null
+                    });
+                }
+                renderSearchResults(el, data);
+            } catch (e) { el.innerHTML = `<p class="text-red-400 text-sm">${esc(e.message)}</p>`; }
+        }
+
+        function renderSearchResults(el, docs) {
+            if (!docs || !docs.length) { el.innerHTML = '<p class="text-gray-500 text-sm py-4">검색 결과가 없습니다.</p>'; return; }
+            el.innerHTML = `<p class="text-gray-400 text-xs mb-3">${docs.length}개 결과</p>` +
+                docs.map(d => {
+                    const m = d.metadata || {};
+                    const scorePercent = d.score ? Math.round(d.score * 100) : 0;
+                    return `<div class="card rounded-lg p-4 mb-3 fade-in">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <p class="text-white font-medium text-sm">${esc(m.title||'')}</p>
+                                <p class="text-gray-500 text-xs mt-1">${esc(m.author||'')} · ${m.publishedYear||''}년</p>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <span class="badge badge-genre">${esc(m.genre||'')}</span>
+                                ${m.rating ? `<span class="badge badge-rating">&#9733; ${m.rating}</span>` : ''}
+                            </div>
+                        </div>
+                        ${d.score != null ? `<div class="mt-3"><div class="flex justify-between text-xs text-gray-500 mb-1"><span>유사도</span><span>${scorePercent}%</span></div><div class="score-bar"><div class="score-fill" style="width:${scorePercent}%"></div></div></div>` : ''}
+                    </div>`;
+                }).join('');
+        }
+
+        // ─── Register ───
+        async function registerBook() {
+            const el = document.getElementById('reg-result');
+            const btn = document.getElementById('reg-btn');
+            btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 등록 중...';
+            el.innerHTML = '';
+            try {
+                const data = await api('/api/books', {
+                    title: document.getElementById('reg-title').value,
+                    author: document.getElementById('reg-author').value,
+                    genre: document.getElementById('reg-genre').value,
+                    description: document.getElementById('reg-desc').value,
+                    rating: parseFloat(document.getElementById('reg-rating').value) || 4.0,
+                    publishedYear: parseInt(document.getElementById('reg-year').value) || 2026,
+                    isbn: document.getElementById('reg-isbn').value || null
+                });
+                el.innerHTML = `<div class="card rounded-lg p-4 fade-in border-green-900">
+                    <p class="text-green-400 text-sm font-medium mb-1">등록 완료</p>
+                    <p class="text-gray-300 text-sm">"${esc(data.title)}" 이(가) RDB + VectorStore에 저장되었습니다.</p>
+                    <p class="text-gray-500 text-xs mt-1">이제 시맨틱 검색과 AI 추천 채팅에서 바로 검색됩니다.</p>
+                </div>`;
+                // 입력 초기화
+                ['reg-title','reg-author','reg-isbn','reg-desc'].forEach(id => document.getElementById(id).value = '');
+            } catch (e) {
+                el.innerHTML = `<p class="text-red-400 text-sm">${esc(e.message)}</p>`;
+            }
+            btn.disabled = false; btn.textContent = '등록하기';
+        }
+
+        // ─── Explore ───
+        async function loadBooks(genre) {
+            // 필터 버튼 active 상태
+            document.querySelectorAll('#genre-filters button').forEach(b => {
+                b.classList.toggle('active', b.dataset.genre === genre);
+            });
+            const el = document.getElementById('books-grid');
+            el.innerHTML = '<div class="col-span-full flex justify-center py-8"><span class="spinner"></span></div>';
+            try {
+                const url = genre ? `/api/books/genre/${encodeURIComponent(genre)}` : '/api/books';
+                const r = await fetch(url); const books = await r.json();
+                if (!books.length) { el.innerHTML = '<p class="col-span-full text-gray-500 text-sm py-8 text-center">도서가 없습니다.</p>'; return; }
+                el.innerHTML = books.map(b => `
+                    <div class="card rounded-lg p-5 fade-in">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="badge badge-genre">${esc(b.genre)}</span>
+                            <span class="badge badge-rating">&#9733; ${b.rating}</span>
+                        </div>
+                        <p class="text-white font-medium text-sm mb-1">${esc(b.title)}</p>
+                        <p class="text-gray-500 text-xs mb-3">${esc(b.author)} · ${b.publishedYear}년</p>
+                        <p class="text-gray-400 text-xs leading-relaxed">${esc(b.description).substring(0,120)}...</p>
+                        ${b.isbn ? `<p class="text-gray-600 text-xs mt-2">ISBN ${esc(b.isbn)}</p>` : ''}
+                    </div>`).join('');
+            } catch (e) { el.innerHTML = `<p class="text-red-400 text-sm">${esc(e.message)}</p>`; }
+        }
+
+        // ─── Embedding ───
+        async function doEmbed() {
+            const el = document.getElementById('embed-result');
+            el.innerHTML = '<div class="flex items-center gap-2 text-gray-500 text-sm"><span class="spinner"></span> 임베딩 중...</div>';
+            try {
+                const data = await api('/api/embedding', { text: document.getElementById('embed-input').value });
+                el.innerHTML = `<div class="card rounded-lg p-5 fade-in space-y-3">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div><p class="text-gray-500 text-xs mb-1">모델</p><p class="text-white text-sm">${esc(String(data.model))}</p></div>
+                        <div><p class="text-gray-500 text-xs mb-1">차원</p><p class="text-white text-sm">${data.dimensions}</p></div>
+                        <div><p class="text-gray-500 text-xs mb-1">벡터 길이</p><p class="text-white text-sm">${data.vectorLength}</p></div>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs mb-1">벡터 샘플 (처음 5개)</p>
+                        <code class="text-xs text-indigo-300 bg-gray-900 rounded px-2 py-1 block">[${(data.vectorSample||[]).map(v=>v.toFixed(6)).join(', ')}, ...]</code>
+                    </div>
+                </div>`;
+            } catch (e) { el.innerHTML = `<p class="text-red-400 text-sm">${esc(e.message)}</p>`; }
+        }
+    </script>
+</body>
+</html>

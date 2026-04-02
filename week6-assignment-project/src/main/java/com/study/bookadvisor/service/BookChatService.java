@@ -34,16 +34,13 @@ import java.util.List;
 public class BookChatService {
 
     private final ChatClient chatClient;
-    private final VectorStore vectorStore;
     private final BookSearchService bookSearchService;
 
     public BookChatService(
             ChatModel chatModel,
             JdbcChatMemoryRepository chatMemoryRepository,
-            VectorStore vectorStore,
             BookSearchService bookSearchService) {
 
-        this.vectorStore = vectorStore;
         this.bookSearchService = bookSearchService;
 
         // ====================================================================

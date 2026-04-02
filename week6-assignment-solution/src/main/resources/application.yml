@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: week6-assignment-solution
+
+  # ── JPA + PostgreSQL ──
+  datasource:
+    url: jdbc:postgresql://localhost:5432/book_db
+    username: app_user
+    password: app_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate  # SQL init 스크립트로 테이블 생성, JPA는 검증만
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: never  # Docker init 스크립트 사용
+
+  # ── Spring AI ──
+  ai:
+    chat:
+      client:
+        enabled: false
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-proj-xxxxxxxxxx}
+      chat:
+        options:
+          model: gpt-4.1-nano
+      embedding:
+        options:
+          model: text-embedding-ada-002
+    vectorstore:
+      pgvector:
+        dimensions: 1536
+        distance-type: cosine_distance
+        index-type: hnsw
+        initialize-schema: true
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    org.springframework.ai.chat.client.advisor: DEBUG
+    com.study.bookadvisor: DEBUG
